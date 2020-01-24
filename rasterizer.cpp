@@ -142,19 +142,35 @@ int orient2d(const Vec2f& a, const Vec2f& b, const Vec2f& c) {
     return (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
 }
 
-void render (Model duck, Mat4f projectionMatrix) {
+void render (Model duck, Mat4f projectionMatrix, Vec3f light) {
     vector<int>frameBuffer(WIDTH * HEIGHT * 3);
     fill(frameBuffer.begin(), frameBuffer.end(), 0);
     
     int i;
     for (i = 0; i < duck.nfaces(); i++) {
         std::vector<Vec2f>points(3);
-        project(duck.point(duck.vert(i, 0)), &points[0], projectionMatrix);
-        project(duck.point(duck.vert(i, 1)), &points[1], projectionMatrix);
-        project(duck.point(duck.vert(i, 2)), &points[2], projectionMatrix);
-        /*points[0] = Vec2f(10.f, 10.f);
-        points[1] = Vec2f(60.f, 60.f);
-        points[2] = Vec2f(100.f, 300.f);*/
+        
+        Vec3f p1 = duck.point(duck.vert(i, 0)), p2 = duck.point(duck.vert(i, 1)), p3 = duck.point(duck.vert(i, 2));
+        
+        project(p1, &points[0], projectionMatrix);
+        project(p2, &points[1], projectionMatrix);
+        project(p3, &points[2], projectionMatrix);
+        
+        Vec3f V = p2 - p1;
+        Vec3f W = p3 - p1;
+        Vec3f surfaceNormal = cross(V, W).normalize();
+        
+        Vec3f centroid = (p1 + p2 + p3) * (1.f / 3.f);
+        
+        Vec3f lightDirection = (light - centroid).normalize();
+        float lightDistance = (light - centroid).norm();
+        cout << "distance" << lightDistance << endl;
+        
+        float lightIntensity = 1.3f * max(-(lightDirection * surfaceNormal), 0.f);
+        cout << "intensity" << lightIntensity << endl;
+        
+        int color = max(0, min((int) (lightIntensity * 255), 255));
+        cout << color << endl;
 
         Vec2f bboxMin(1000., 1000.);
         Vec2f bboxMax(-1000., -1000.);
@@ -185,7 +201,7 @@ void render (Model duck, Mat4f projectionMatrix) {
                 
                 if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
                     for (c = 0; c < 3; c++) {
-                        frameBuffer[access] = 255;
+                        frameBuffer[access] = color;
                     }
                 }
             
@@ -198,6 +214,8 @@ void render (Model duck, Mat4f projectionMatrix) {
 
 int main () {
     Model duck("duck.obj");
+    
+    Vec3f light = Vec3f(0.f, 0.f, 0.f);
     
     float zFar = 1.f;
     float zNear = -1.f;
@@ -213,7 +231,7 @@ int main () {
     projectionMatrix[3][0] = (0.f + HEIGHT) / (0.f - HEIGHT);
     projectionMatrix[3][0] = (zFar + zNear) / (zFar - zNear);
     
-    render(duck, projectionMatrix);
+    render(duck, projectionMatrix, light);
 
     return 0;
 }
