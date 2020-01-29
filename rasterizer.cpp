@@ -136,7 +136,7 @@ void writeImage (std::vector<int>frameBuffer) {
     file.close();
 }
 
-void project (Vec3f point, Vec2f *pScreen, Mat4f projectionMatrix) {
+void project (Vec3f point, Vec3f *pScreen, Mat4f projectionMatrix) {
     
     float aspectRatio = WIDTH / HEIGHT;
     
@@ -151,7 +151,7 @@ int orient2d(const Vec2f& a, const Vec2f& b, const Vec2f& c) {
     return (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
 }
 
-Vec3f barycenter (Vec2f a, Vec2f b, Vec2f c, Vec3f pixel) {
+Vec3f barycenter (Vec3f a, Vec3f b, Vec3f c, Vec3f pixel) {
 	Vec3f bc = Vec3f();
 	bc.x = (c.x-b.x)*(pixel.y-b.y) - (c.y-b.y)*(pixel.x-b.x);
 	bc.y = (a.x-c.x)*(pixel.y-c.y) - (a.y-c.y)*(pixel.x-c.x);
@@ -162,6 +162,7 @@ Vec3f barycenter (Vec2f a, Vec2f b, Vec2f c, Vec3f pixel) {
 
 void render (Model duck, Mat4f projectionMatrix, Vec3f light) {
     vector<int>frameBuffer(WIDTH * HEIGHT * 3);
+    vector<int>zBuffer(WIDTH * HEIGHT);
 
     int i;
     for (i = 0; i < WIDTH * HEIGHT * 3; i++) {
@@ -169,9 +170,11 @@ void render (Model duck, Mat4f projectionMatrix, Vec3f light) {
         frameBuffer[i + 1] = BACKGROUND_G;
         frameBuffer[i + 2] = BACKGROUND_B;
     }
+
+    fill(zBuffer.begin(), zBuffer.end(), INT_MIN);
     
     for (i = 0; i < duck.nfaces(); i++) {
-        std::vector<Vec2f>points(3);
+        std::vector<Vec3f>points(3);
         
         Vec3f p1 = duck.point(duck.vert(i, 0)), p2 = duck.point(duck.vert(i, 1)), p3 = duck.point(duck.vert(i, 2));
         
@@ -216,9 +219,16 @@ void render (Model duck, Mat4f projectionMatrix, Vec3f light) {
                 Vec3f barycentr = barycenter(points[0], points[1], points[2], pixel);
 
                 if (barycentr.x >= 0 && barycentr.y >= 0 && barycentr.z >= 0) {
-                    frameBuffer[ACCESS(0)] = MODEL_R * lightIntensity;
-                    frameBuffer[ACCESS(1)] = MODEL_G * lightIntensity;
-                    frameBuffer[ACCESS(2)] = MODEL_B * lightIntensity;
+                	pixel.z = 0;
+                	for (j = 0; j < 3; j++)
+                		pixel.z += points[j].z * barycentr[j];
+
+                	if (zBuffer[(int) pixel.x + pixel.y * WIDTH] < (int) pixel.z) {
+                		zBuffer[(int) pixel.x + pixel.y * WIDTH] = pixel.z;
+	                    frameBuffer[ACCESS(0)] = MODEL_R * lightIntensity;
+	                    frameBuffer[ACCESS(1)] = MODEL_G * lightIntensity;
+	                    frameBuffer[ACCESS(2)] = MODEL_B * lightIntensity;
+                	}
                 }
             
             }
