@@ -11,7 +11,16 @@
 #define WIDTH 800
 #define HEIGHT 800
 
-#define access ((x + (y * WIDTH)) * 3) + c
+#define ACCESS_C ((x + (y * WIDTH)) * 3) + c
+#define ACCESS(i) ((pixel.x + (pixel.y * WIDTH)) * 3) + i
+
+#define BACKGROUND_R 75
+#define BACKGROUND_G 75
+#define BACKGROUND_B 75
+
+#define MODEL_R 200
+#define MODEL_G 0
+#define MODEL_B 0
 
 #define FLT_MAX numeric_limits<float>::max()
 #define FLT_MIN numeric_limits<float>::min()
@@ -119,7 +128,7 @@ void writeImage (std::vector<int>frameBuffer) {
     for (y = 0; y < HEIGHT; y++) {
         for (x = 0; x < WIDTH; x++) {
             for (c = 0; c < 3; c++) {
-                file << frameBuffer[access] << " ";
+                file << frameBuffer[ACCESS_C] << " ";
             }
         }
         file << endl;
@@ -142,11 +151,25 @@ int orient2d(const Vec2f& a, const Vec2f& b, const Vec2f& c) {
     return (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
 }
 
+Vec3f barycenter (Vec2f a, Vec2f b, Vec2f c, Vec3f pixel) {
+	Vec3f bc = Vec3f();
+	bc.x = (c.x-b.x)*(pixel.y-b.y) - (c.y-b.y)*(pixel.x-b.x);
+	bc.y = (a.x-c.x)*(pixel.y-c.y) - (a.y-c.y)*(pixel.x-c.x);
+	bc.z = (b.x-a.x)*(pixel.y-a.y) - (b.y-a.y)*(pixel.x-a.x);
+	return bc;
+	//1 2 - 2 0 - 0 1
+}
+
 void render (Model duck, Mat4f projectionMatrix, Vec3f light) {
     vector<int>frameBuffer(WIDTH * HEIGHT * 3);
-    fill(frameBuffer.begin(), frameBuffer.end(), 0);
-    
+
     int i;
+    for (i = 0; i < WIDTH * HEIGHT * 3; i++) {
+        frameBuffer[i + 0] = BACKGROUND_R;
+        frameBuffer[i + 1] = BACKGROUND_G;
+        frameBuffer[i + 2] = BACKGROUND_B;
+    }
+    
     for (i = 0; i < duck.nfaces(); i++) {
         std::vector<Vec2f>points(3);
         
@@ -164,13 +187,10 @@ void render (Model duck, Mat4f projectionMatrix, Vec3f light) {
         
         Vec3f lightDirection = (light - centroid).normalize();
         float lightDistance = (light - centroid).norm();
-        cout << "distance" << lightDistance << endl;
-        
+
         float lightIntensity = 1.3f * max(-(lightDirection * surfaceNormal), 0.f);
-        cout << "intensity" << lightIntensity << endl;
         
-        int color = max(0, min((int) (lightIntensity * 255), 255));
-        cout << color << endl;
+        lightIntensity = max(0.f, min(lightIntensity, 1.f)); //clamping
 
         Vec2f bboxMin(1000., 1000.);
         Vec2f bboxMax(-1000., -1000.);
@@ -188,21 +208,17 @@ void render (Model duck, Mat4f projectionMatrix, Vec3f light) {
         bboxMin.y = max(0.f, min(bboxMin.y, (float)HEIGHT));
         bboxMax.x = max(0.f, min(bboxMax.x, (float)WIDTH));
         bboxMax.y = max(0.f, min(bboxMax.y, (float)HEIGHT));
-        
-        cout << bboxMin.x << " " << bboxMin.y << " " << bboxMax.x << " " << bboxMax.y <<endl;
-        
-        int x, y, c;
-        for (x = bboxMin.x; x < bboxMax.x; x++) {
-            for (y = bboxMin.y; y < bboxMax.y; y++) {
-                // Determine barycentric coordinates
-                int w0 = orient2d(points[1], points[2], Vec2f(x, y));
-                int w1 = orient2d(points[2], points[0], Vec2f(x, y));
-                int w2 = orient2d(points[0], points[1], Vec2f(x, y));
                 
-                if (w0 >= 0 && w1 >= 0 && w2 >= 0) {
-                    for (c = 0; c < 3; c++) {
-                        frameBuffer[access] = color;
-                    }
+        int c, x, y;
+        Vec3f pixel;
+        for (pixel.x = (int)bboxMin.x; pixel.x < bboxMax.x; pixel.x++) {
+            for (pixel.y = (int)bboxMin.y; pixel.y < bboxMax.y; pixel.y++) {
+                Vec3f barycentr = barycenter(points[0], points[1], points[2], pixel);
+
+                if (barycentr.x >= 0 && barycentr.y >= 0 && barycentr.z >= 0) {
+                    frameBuffer[ACCESS(0)] = MODEL_R * lightIntensity;
+                    frameBuffer[ACCESS(1)] = MODEL_G * lightIntensity;
+                    frameBuffer[ACCESS(2)] = MODEL_B * lightIntensity;
                 }
             
             }
