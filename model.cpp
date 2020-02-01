@@ -24,9 +24,12 @@ Model::Model(const char *filename) : verts(), faces() {
             verts.push_back(v);
         } else if (!line.compare(0, 2, "f ")) {
             Vec3i f;
+            std::string str, token;
             int idx, cnt=0;
             iss >> trash;
-            while (iss >> idx) {
+            while (iss >> str) {
+                token = str.std::string::substr(0, str.std::string::find('/'));
+                idx = std::stoi(token);
                 idx--; // in wavefront obj all indices start at 1, not zero
                 f[cnt++] = idx;
             }
