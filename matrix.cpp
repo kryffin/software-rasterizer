@@ -53,12 +53,37 @@ Vec4f operator* (const Mat4f& m, const Vec3f& v) {
                 );
 }
 
-Vec4f operator* (const Vec3f& v, const Mat4f& m) {
+Vec4f operator* (const Mat4f& m, const Vec4f& v) {
     return Vec4f(
-                v.x * m[0][0] + v.y * m[0][1] + v.z * m[0][2] + 1 * m[0][3],
-                v.x * m[1][0] + v.y * m[1][1] + v.z * m[1][2] + 1 * m[1][3],
-                v.x * m[2][0] + v.y * m[2][1] + v.z * m[2][2] + 1 * m[2][3],
-                v.x * m[3][0] + v.y * m[3][1] + v.z * m[3][2] + 1 * m[3][3]
+                m[0][0] * v.x + m[1][0] * v.y + m[2][0] * v.z + m[3][0] * v.w,
+                m[0][1] * v.x + m[1][1] * v.y + m[2][1] * v.z + m[3][1] * v.w,
+                m[0][2] * v.x + m[1][2] * v.y + m[2][2] * v.z + m[3][2] * v.w,
+                m[0][3] * v.x + m[1][3] * v.y + m[2][3] * v.z + m[3][3] * v.w
+                );
+}
+
+Vec3f operator* (const Vec3f& v, const Mat4f& m) {
+	Vec3f out = Vec3f(v.x * m[0][0] + v.y * m[0][1] + v.z * m[0][2] + 1 * m[0][3],
+					v.x * m[1][0] + v.y * m[1][1] + v.z * m[1][2] + 1 * m[1][3],
+					v.x * m[2][0] + v.y * m[2][1] + v.z * m[2][2] + 1 * m[2][3]);
+
+	//float w = v.x * m[3][0] + v.y * m[3][1] + v.z * m[3][2] + 1 * m[3][3];
+
+	//if (w != 1.f) {
+		//out.x /= w;
+		//out.y /= w;
+		//out.z /= w;
+	//}
+
+    return out;
+}
+
+Vec4f operator* (const Vec4f& v, const Mat4f& m) {
+    return Vec4f(
+                v.x * m[0][0] + v.y * m[0][1] + v.z * m[0][2] + v.w * m[0][3],
+                v.x * m[1][0] + v.y * m[1][1] + v.z * m[1][2] + v.w * m[1][3],
+                v.x * m[2][0] + v.y * m[2][1] + v.z * m[2][2] + v.w * m[2][3],
+                v.x * m[3][0] + v.y * m[3][1] + v.z * m[3][2] + v.w * m[3][3]
                 );
 }
 
@@ -92,17 +117,25 @@ Mat4f operator*( const Mat4f& m1, const Mat4f& m2 )
     return Mat4f( X, Y, Z, W );
 }
 
-Mat4f perspectiveProjectionMatrix (float fov, float near, float far) {
+Mat4f perspectiveProjectionMatrix (float fov, float near, float far, float aspectRatio) {
 	Mat4f P = Mat4f();
 
-	float scale = 1.f / (tan((fov / 2.f) * (M_PI / 180.f)));
+	/*float fovRad = 1.f / (fov * 0.5f / 180.f * M_PI);
 
-	P[0][0] = scale;
-    P[1][1] = scale;
-    P[2][2] = - (far / (far - near));
-    P[3][3] = 0.f;
-    P[2][3] = -1.f;
-    P[3][2] = - ((far * near) / (far - near));
+	P[0][0] = aspectRatio * fovRad;
+	P[1][1] = fovRad;
+	P[2][2] = far / (far - near);
+	P[2][3] = (far * near) / (far - near);
+	P[3][2] = 1.f;
+	P[3][3] = 0.f;*/
+
+	float scale = 1 / tanf(fov * 0.5 * M_PI / 180); 
+    P[0][0] = scale; // scale the x coordinates of the projected point 
+    P[1][1] = scale; // scale the y coordinates of the projected point 
+    P[2][2] = -far / (far - near); // used to remap z to [0,1] 
+    P[2][3] = -far * near / (far - near); // used to remap z [0,1] 
+    P[3][2] = -1.f; // set w = -z 
+    P[3][3] = 0.f; 
 
     return P;
 }
@@ -137,6 +170,9 @@ Mat4f viewMatrix () {
 	Mat4f V = Mat4f();
 
 	V[1][1] = -1.f;
+	//V[3][1] = -10.f;
+	//V[3][2] = -20.f;
+	//V[0][0] = -1.f;
 
 	return V;
 }

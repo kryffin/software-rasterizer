@@ -8,4 +8,4 @@ all:
 	$(GPP) $(SOURCES) $(OPTIONS) $(TARGET) $(LIBS)
 
 clean:
-	rm $(SOURCES) 
+	rm $(TARGET) 
