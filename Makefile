@@ -1,6 +1,6 @@
 GPP = g++
 SOURCES = rasterizer.cpp
-OPTIONS = -o
+OPTIONS = -std=c++11 -o
 TARGET = rasterizer
 LIBS =
 

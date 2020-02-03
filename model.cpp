@@ -5,7 +5,7 @@
 #include "model.h"
 
 // fills verts and faces arrays, supposes .obj file to have "f " entries without slashes
-Model::Model(const char *filename) : verts(), faces() {
+Model::Model(const char *filename) : verts(), faces(), norms() {
     std::ifstream in;
     in.open (filename, std::ifstream::in);
     if (in.fail()) {
@@ -34,9 +34,15 @@ Model::Model(const char *filename) : verts(), faces() {
                 f[cnt++] = idx;
             }
             if (3==cnt) faces.push_back(f);
+        } else if (!line.compare(0, 3, "vn ")) {
+            iss >> trash;
+            iss >> trash;
+            Vec3f vn;
+            for (int i = 0; i < 3; i++) iss >> vn[i];
+            norms.push_back(vn);
         }
     }
-    std::cerr << "# v# " << verts.size() << " f# "  << faces.size() << std::endl;
+    std::cerr << "# v# " << verts.size() << " f# "  << faces.size() << " vn# " << norms.size() << std::endl;
 
     Vec3f min, max;
     get_bbox(min, max);
@@ -71,6 +77,10 @@ int Model::nfaces() const {
     return (int)faces.size();
 }
 
+int Model::nnorms() const {
+    return (int)norms.size();
+}
+
 void Model::get_bbox(Vec3f &min, Vec3f &max) {
     min = max = verts[0];
     for (int i=1; i<(int)verts.size(); ++i) {
@@ -95,6 +105,11 @@ Vec3f &Model::point(int i) {
 int Model::vert(int fi, int li) const {
     assert(fi>=0 && fi<nfaces() && li>=0 && li<3);
     return faces[fi][li];
+}
+
+Vec3f Model::norm (int vi) const {
+    assert(vi>=0 && vi<nnorms());
+    return norms[vi];
 }
 
 std::ostream& operator<<(std::ostream& out, Model &m) {

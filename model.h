@@ -8,17 +8,20 @@ class Model {
 private:
     std::vector<Vec3f> verts;
     std::vector<Vec3i> faces;
+    std::vector<Vec3f> norms;
 public:
     Model(const char *filename);
 
     int nverts() const;                          // number of vertices
     int nfaces() const;                          // number of triangles
+    int nnorms() const;                          // number of normals (should be = nfaces())
 
     bool ray_triangle_intersect(const int &fi, const Vec3f &orig, const Vec3f &dir, float &tnear);
 
     const Vec3f &point(int i) const;                   // coordinates of the vertex i
     Vec3f &point(int i);                   // coordinates of the vertex i
     int vert(int fi, int li) const;              // index of the vertex for the triangle fi and local index li
+    Vec3f norm(int vi) const;                 //index of the normal of the vertex vi
     void get_bbox(Vec3f &min, Vec3f &max); // bounding box for all the vertices, including isolated ones
 };
 
