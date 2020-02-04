@@ -5,9 +5,9 @@
 #include <cmath>
 #include <limits>
 
-#include "geometry.h"
-#include "matrix.cpp"
-#include "model.cpp" //adapted for the new obj structure (thx ssloy)
+//#include "geometry.h"
+#include "geometry.cpp"
+#include "parser.cpp" //adapted for the new obj structure (thx ssloy)
 
 #define WIDTH 800
 #define HEIGHT 800
@@ -69,45 +69,67 @@ void render (Model model, Mat4f P, Vec3f camera) {
     }
 
     std::fill(zBuffer.begin(), zBuffer.end(), INT_MIN);
+
+    //
+    // world matrix, for model transformations (= model matrix)
+
+	Mat4f mRotation, mScale, mTranslation, mWorld;
+
+	mRotation = rotation(0.f, 0.f, 0.f);
+	mScale = scale(1.f, 1.f, 1.f);
+	mTranslation = translation(0.f, 0.f, 3.f);
+
+	mWorld = mRotation * mScale * mTranslation;
+
+	//
+	// iteration through all the triangles of the model
     
-    for (i = 0; i < model.nfaces(); i++) {
+    for (i = 0; i < model.nTriangles(); i++) {
 
-        Vec3f p0 = model.point(model.vert(i, 0));
-		Vec3f p1 = model.point(model.vert(i, 1));
-		Vec3f p2 = model.point(model.vert(i, 2));
+    	int tv0 = model.triangleVertice(i, 0), tv1 = model.triangleVertice(i, 1), tv2 = model.triangleVertice(i, 2);
 
-		Vec3f vn0 = model.norm(model.vert(i, 0));
-		Vec3f vn1 = model.norm(model.vert(i, 1));
-		Vec3f vn2 = model.norm(model.vert(i, 2));
+        Vec3f p0 = model.vertice(tv0);
+		Vec3f p1 = model.vertice(tv1);
+		Vec3f p2 = model.vertice(tv2);
 
-		Vec3f rp0 = p0;
-		Vec3f rp1 = p1;
-		Vec3f rp2 = p2;
+		Vec3f vn0 = model.normal(tv0);
+		Vec3f vn1 = model.normal(tv1);
+		Vec3f vn2 = model.normal(tv2);
+
+		Vec3f tp0 = p0;
+		Vec3f tp1 = p1;
+		Vec3f tp2 = p2;
 
 		//
-		// rotations
+		// world transformation
 
-		/*rp0 = rotationZ(5.f) * rp0;
-		rp1 = rotationZ(5.f) * rp1;
-		rp2 = rotationZ(5.f) * rp2;*/
+		tp0 = mWorld * tp0;
+		tp1 = mWorld * tp1;
+		tp2 = mWorld * tp2;
 
-		/*rp0 = rotationY(15.f) * rp0;
-		rp1 = rotationY(15.f) * rp1;
-		rp2 = rotationY(15.f) * rp2;*/
+		//
+		// normal of triangle calculation #1 : using the V and W lines (kinda buggy cause some triangles might have baddly initialized normals (or bad zBuffer?))
+        
+        /*Vec3f line1 = tp1 - tp0;
+        Vec3f line2 = tp2 - tp0;
+        Vec3f surfaceNormal = line1.cross(line2).normalize();*/
 
-		/*rp0 = rotationX(3.f) * rp0;
-		rp1 = rotationX(3.f) * rp1;
-		rp2 = rotationX(3.f) * rp2;*/
+        //
+        // normal of triangle calculation #2 : average of the 3 vertices' normals (~~~~~ kinda buggy which is legitimate cause the vertex can change a lot ~~~~~)
+        
+        Vec3f surfaceNormal = ((vn0 + vn1 + vn2) * (1.f / 3.f)).normalize();
 
-		Vec3f tp0 = rp0;
-		Vec3f tp1 = rp1;
-		Vec3f tp2 = rp2;
+        //
+        // back-face culling - ?
 
-		tp0.z += 3.f;
-		tp1.z += 3.f;
-		tp2.z += 3.f;
+        if (((surfaceNormal.x * (tp0.x - camera.x)) +
+        	 (surfaceNormal.y * (tp0.y - camera.y)) +
+        	 (surfaceNormal.z * (tp0.z - camera.z)) < 0.f)) continue;
 
-		Vec3f pp0 = P * tp0;
+        //
+		// projection of the vertices
+
+        Vec3f pp0 = P * tp0;
 		Vec3f pp1 = P * tp1;
 		Vec3f pp2 = P * tp2;
 
@@ -118,65 +140,19 @@ void render (Model model, Mat4f P, Vec3f camera) {
 		pp0.x *= 0.5f * (float)WIDTH; pp0.y *= 0.5f * (float)HEIGHT;
 		pp1.x *= 0.5f * (float)WIDTH; pp1.y *= 0.5f * (float)HEIGHT;
 		pp2.x *= 0.5f * (float)WIDTH; pp2.y *= 0.5f * (float)HEIGHT;
-
-		//
-		// vertices drawing
-
-		/*frameBuffer[(((int)pp0.x + ((int)pp0.y * WIDTH)) * 3) + 0] = 255;
-		frameBuffer[(((int)pp0.x + ((int)pp0.y * WIDTH)) * 3) + 1] = 0;
-		frameBuffer[(((int)pp0.x + ((int)pp0.y * WIDTH)) * 3) + 2] = 0;
-
-		frameBuffer[((pp1.x + ((int)pp1.y * WIDTH)) * 3) + 0] = 255;
-		frameBuffer[((pp1.x + ((int)pp1.y * WIDTH)) * 3) + 1] = 0;
-		frameBuffer[((pp1.x + ((int)pp1.y * WIDTH)) * 3) + 2] = 0;
-
-		frameBuffer[(((int)pp2.x + ((int)pp2.y * WIDTH)) * 3) + 0] = 255;
-		frameBuffer[(((int)pp2.x + ((int)pp2.y * WIDTH)) * 3) + 1] = 0;
-		frameBuffer[(((int)pp2.x + ((int)pp2.y * WIDTH)) * 3) + 2] = 0;*/
-
-		//
-		// normal of triangle calculation #1 : using the V and W lines (kinda buggy cause some triangles might have baddly initialized normals (or bad zBuffer?))
-        
-        Vec3f VV = pp1 - pp0;
-        Vec3f WW = pp2 - pp0;
-
-        Vec3f surfaceNormal = Vec3f(
-        		(VV.y * WW.z) - (VV.z * WW.y),
-        		(VV.z * WW.x) - (VV.x * WW.z),
-        		(VV.x * WW.y) - (VV.y * WW.x)
-        	);
-
-        float toNormalize = 1.f / sqrtf(surfaceNormal.x * surfaceNormal.x + surfaceNormal.y * surfaceNormal.y + surfaceNormal.z * surfaceNormal.z);
-        surfaceNormal.x /= toNormalize; surfaceNormal.y /= toNormalize; surfaceNormal.z /= toNormalize;
-
-        //
-        // normal of triangle calculation #2 : average of the 3 vertices' normals (~~~~~ kinda buggy which is legitimate cause the vertex can change a lot ~~~~~)
-        
-        /*Vec3f surfaceNormal = (vn0 + vn1 + vn2) * (1.f / 3.f);
-        float toNormalize = 1.f / sqrtf(surfaceNormal.x * surfaceNormal.x + surfaceNormal.y * surfaceNormal.y + surfaceNormal.z * surfaceNormal.z);
-        surfaceNormal.x /= toNormalize; surfaceNormal.y /= toNormalize; surfaceNormal.z /= toNormalize;*/
-
-        //
-        // back-face culling - ?
-
-        if (((surfaceNormal.x * (tp0.x - camera.x)) +
-        	 (surfaceNormal.y * (tp0.y - camera.y)) +
-        	 (surfaceNormal.z * (tp0.z - camera.z)) < 0.f)) continue;
         
         //
     	// constant light exposure
 
-        Vec3f lightDirection = Vec3f(0.f, 0.f, -1.f);
-        toNormalize = 1.f / sqrtf(lightDirection.x * lightDirection.x + lightDirection.y * lightDirection.y + lightDirection.z * lightDirection.z);
-        lightDirection.x /= toNormalize; lightDirection.y /= toNormalize; lightDirection.z /= toNormalize;
+        Vec3f lightDirection = Vec3f(0.f, 0.f, -1.f).normalize();
 
         //
         // angle between triangle normal and light direction
 
-        float dot = lightDirection.x * surfaceNormal.x + lightDirection.y * surfaceNormal.y + lightDirection.z * surfaceNormal.z;
+        float dot = surfaceNormal * lightDirection;
 
         //
-        // bounding box init
+        // bounding box init -- clean that somehow
 
         Vec2f bboxMin(FLT_MAX, FLT_MAX);
         Vec2f bboxMax(FLT_MIN, FLT_MIN);
@@ -197,7 +173,7 @@ void render (Model model, Mat4f P, Vec3f camera) {
         if (pp2.y > bboxMax.y) bboxMax.y = pp2.y;
         
         //
-        // bounding box clamping in-screen
+        // bounding box clamping in-screen -- clean that somehow
 
         bboxMin.x = std::max(0.f, std::min(bboxMin.x, (float)WIDTH));
         bboxMin.y = std::max(0.f, std::min(bboxMin.y, (float)HEIGHT));
@@ -205,7 +181,7 @@ void render (Model model, Mat4f P, Vec3f camera) {
         bboxMax.y = std::max(0.f, std::min(bboxMax.y, (float)HEIGHT));
                 
         //
-        // iterating through the bounding box
+        // iterating through the bounding box -- maybe clean that?
 
         Vec3f pixel;
         for (pixel.x = (int)bboxMin.x; pixel.x < bboxMax.x; pixel.x++) {
@@ -216,22 +192,25 @@ void render (Model model, Mat4f P, Vec3f camera) {
 
                 if (bc.x >= 0 && bc.y >= 0 && bc.z >= 0) {
                 	
+                	// depth of the triangle by average of z coordinates
+                	pixel.z = (pp0.z + pp1.z + pp2.z) / 3.f;
+
                 	// depth of the triangle - ? (taken from ssloy)
-                	pixel.z = 0;
+                	/*pixel.z = 0;
             		pixel.z += pp0.z * bc[0];
             		pixel.z += pp1.z * bc[1];
-            		pixel.z += pp2.z * bc[2];
+            		pixel.z += pp2.z * bc[2];*/
 
             		// drawing (only if nearest pixel visited)
-                	if (zBuffer[(int)pixel.x + ((int)pixel.y * WIDTH)] < pixel.z) {
+                	//if (zBuffer[(int)pixel.x + ((int)pixel.y * WIDTH)] < pixel.z) {
 
                 		// updating the zBuffer
-                		zBuffer[(int)pixel.x + ((int)pixel.y * WIDTH)] = pixel.z;
+                		//zBuffer[(int)pixel.x + ((int)pixel.y * WIDTH)] = pixel.z;
 
-	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 0] = MODEL_R * dot; // red model color * light intensity
-	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 1] = MODEL_G * dot; // green model color * light intensity
-	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 2] = MODEL_B * dot; // blue model color * light intensity
-                	}
+	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 0] = MODEL_R * dot;
+	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 1] = MODEL_G * dot;
+	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 2] = MODEL_B * dot;
+                	//}
                 }
             
             }
@@ -244,8 +223,8 @@ void render (Model model, Mat4f P, Vec3f camera) {
 }
 
 int main () {
-    //Model model("african_head.obj");
-    Model model("diablo_pose.obj");
+    //Model model("obj/african_head.obj");
+    Model model("obj/diablo_pose.obj");
     
     // TODO
     Vec3f camera = Vec3f(0.f, 0.f, 0.f);
