@@ -56,7 +56,7 @@ Vec3f barycenter (Vec3f a, Vec3f b, Vec3f c, Vec3f pixel) {
 	return bc;
 }
 
-void render (Model model, Mat4f P, Vec3f camera) {
+void render (Model model, Mat4f P, Mat4f M) {
 
     std::vector<int>frameBuffer(WIDTH * HEIGHT * 3);
     std::vector<int>zBuffer(WIDTH * HEIGHT);
@@ -69,17 +69,6 @@ void render (Model model, Mat4f P, Vec3f camera) {
     }
 
     std::fill(zBuffer.begin(), zBuffer.end(), INT_MIN);
-
-    //
-    // world matrix, for model transformations (= model matrix)
-
-	Mat4f mRotation, mScale, mTranslation, mWorld;
-
-	mRotation = rotation(0.f, 0.f, 0.f);
-	mScale = scale(1.f, 1.f, 1.f);
-	mTranslation = translation(0.f, 0.f, 3.f);
-
-	mWorld = mRotation * mScale * mTranslation;
 
 	//
 	// iteration through all the triangles of the model
@@ -103,9 +92,11 @@ void render (Model model, Mat4f P, Vec3f camera) {
 		//
 		// world transformation
 
-		tp0 = mWorld * tp0;
-		tp1 = mWorld * tp1;
-		tp2 = mWorld * tp2;
+		tp0 = M * tp0;
+		tp1 = M * tp1;
+		tp2 = M * tp2;
+
+		std::cout << "Transformed (0) : " << tp0 << std::endl;
 
 		//
 		// normal of triangle calculation #1 : using the V and W lines (kinda buggy cause some triangles might have baddly initialized normals (or bad zBuffer?))
@@ -122,9 +113,9 @@ void render (Model model, Mat4f P, Vec3f camera) {
         //
         // back-face culling - ?
 
-        if (((surfaceNormal.x * (tp0.x - camera.x)) +
-        	 (surfaceNormal.y * (tp0.y - camera.y)) +
-        	 (surfaceNormal.z * (tp0.z - camera.z)) < 0.f)) continue;
+        //if (((surfaceNormal.x * (tp0.x - camera.x)) +
+        //	 (surfaceNormal.y * (tp0.y - camera.y)) +
+        //	 (surfaceNormal.z * (tp0.z - camera.z)) < 0.f)) continue;
 
         //
 		// projection of the vertices
@@ -133,6 +124,8 @@ void render (Model model, Mat4f P, Vec3f camera) {
 		Vec3f pp1 = P * tp1;
 		Vec3f pp2 = P * tp2;
 
+		std::cout << "Projected (0) : " << pp0 << std::endl;
+
 		pp0.x += 1.f; pp0.y += 1.f;
 		pp1.x += 1.f; pp1.y += 1.f;
 		pp2.x += 1.f; pp2.y += 1.f;
@@ -140,16 +133,18 @@ void render (Model model, Mat4f P, Vec3f camera) {
 		pp0.x *= 0.5f * (float)WIDTH; pp0.y *= 0.5f * (float)HEIGHT;
 		pp1.x *= 0.5f * (float)WIDTH; pp1.y *= 0.5f * (float)HEIGHT;
 		pp2.x *= 0.5f * (float)WIDTH; pp2.y *= 0.5f * (float)HEIGHT;
+
+		std::cout << "Projected' (0) : " << pp0 << std::endl;
         
         //
     	// constant light exposure
 
-        Vec3f lightDirection = Vec3f(0.f, 0.f, -1.f).normalize();
+        Vec3f lightDirection = Vec3f(0.f, 0.f, 1.f).normalize();
 
         //
         // angle between triangle normal and light direction
 
-        float dot = surfaceNormal * lightDirection;
+        float dot = surfaceNormal.dot(lightDirection);
 
         //
         // bounding box init -- clean that somehow
@@ -226,13 +221,13 @@ int main () {
     //Model model("obj/african_head.obj");
     Model model("obj/diablo_pose.obj");
     
-    // TODO
-    Vec3f camera = Vec3f(0.f, 0.f, 0.f);
-
     // projection matrix 	   near   far    fov   width  height
-    Mat4f P = projectionMatrix(0.1f, 1000.f, 90.f, WIDTH, HEIGHT);
+    Mat4f mProjection = projectionMatrix(0.1f, 1000.f, 90.f, WIDTH, HEIGHT);
 
-	render(model, P, camera);
+    // world matrix, for model transformations (= model matrix - ?)
+	Mat4f mWorld = rotation(0.f, 0.f, 0.f) * scale(1.f, 1.f, 1.f) * translation(0.f, 0.f, 3.f);
+
+	render(model, mProjection, mWorld);
 
     return 0;
 }

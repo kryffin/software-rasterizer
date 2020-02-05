@@ -1,3 +1,4 @@
+#include <ostream>
 
 // (x, y) (floats) vector
 class Vec2f {
@@ -9,6 +10,15 @@ public:
 	Vec2f (float x, float y) {
 		this->x = x;
 		this->y = y;
+	}
+
+	float length () {
+		return sqrtf((x * x) + (y * y));
+	}
+
+	Vec2f normalize () {
+		float len = length();
+		return Vec2f(x / len, y / len);
 	}
 
 	Vec2f operator+ (Vec2f in) {
@@ -39,15 +49,16 @@ public:
 		return Vec2f(x / in, y / in);
 	}
 
-	float length () {
-		return sqrtf((x * x) + (y * y));
-	}
-
-	Vec2f normalize () {
-		float len = length();
-		return Vec2f(x / len, y / len);
+	std::ostream& operator<< (std::ostream& os) {
+		os << x << " " << y;
+		return os;
 	}
 };
+
+std::ostream& operator<< (std::ostream& os, Vec2f v) {
+	os << v.x << " " << v.y;
+	return os;
+}
 
 class Vec3i {
 public:
@@ -75,6 +86,27 @@ public:
 		this->z = z;
 	}
 
+	Vec3f cross (Vec3f in) {
+		return Vec3f(
+        		(y * in.z) - (z * in.y),
+        		(z * in.x) - (x * in.z),
+        		(x * in.y) - (y * in.x)
+        	);
+	}
+
+	float dot (Vec3f in) {
+		return (x * in.x) + (y * in.y) + (z * in.z);
+	}
+
+	float length () {
+		return sqrtf((x * x) + (y * y) + (z * z));
+	}
+
+	Vec3f normalize () {
+		float len = length();
+		return Vec3f(x / len, y / len, z / len);
+	}
+
 	Vec3f operator+ (Vec3f in) {
 		return Vec3f(x + in.x, y + in.y, z + in.z);
 	}
@@ -91,9 +123,8 @@ public:
 		return Vec3f(x - in, y - in, z - in);
 	}
 
-	//dot product
-	float operator* (Vec3f in) {
-		return (x * in.x) + (y * in.y) + (z * in.z);
+	Vec3f operator* (Vec3f in) {
+		return Vec3f(x * in.x, y * in.y, z * in.z);
 	}
 
 	Vec3f operator* (float in) {
@@ -107,24 +138,12 @@ public:
 	Vec3f operator/ (float in) {
 		return Vec3f(x / in, y / in, z / in);
 	}
-
-	Vec3f cross (Vec3f in) {
-		return Vec3f(
-        		(y * in.z) - (z * in.y),
-        		(z * in.x) - (x * in.z),
-        		(x * in.y) - (y * in.x)
-        	);
-	}
-
-	float length () {
-		return sqrtf((x * x) + (y * y) + (z * z));
-	}
-
-	Vec3f normalize () {
-		float len = length();
-		return Vec3f(x / len, y / len, z / len);
-	}
 };
+
+std::ostream& operator<< (std::ostream& os, Vec3f v) {
+	os << v.x << " " << v.y << " " << v.z;
+	return os;
+}
 
 // 4x4 (floats) matrix
 class Mat4f {
@@ -183,6 +202,21 @@ Mat4f projectionMatrix (float near, float far, float fov, int width, int height)
     P.m[3][3] = 0.f;
 
     return P;
+}
+
+Mat4f viewPort (int x, int y, int w, int h) {
+	float depth = 255.f;
+	Mat4f VP = Mat4f(1.f);
+
+    VP.m[0][3] = x + (w / 2.f);
+    VP.m[1][3] = y + (h / 2.f);
+    VP.m[2][3] = depth / 2.f;
+
+    VP.m[0][0] = w / 2.f;
+    VP.m[1][1] = h / 2.f;
+    VP.m[2][2] = depth / 2.f;
+
+    return VP;
 }
 
 Mat4f rotationZ (float angle) {
