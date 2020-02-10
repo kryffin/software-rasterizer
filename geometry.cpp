@@ -188,35 +188,52 @@ public:
 };
 
 // projection matrix (testing to do)
-Mat4f projectionMatrix (float near, float far, float fov, int width, int height) {
+Mat4f projectionMatrix (float near, float far, float fov, float width, float height) {
     float aspectRatio = (float)height / (float)width;
-    float fovRad = 1.f / tanf(fov * 0.5f * (M_PI / 180.f));
+    float fovRad = 1.f / tanf((fov / 2.f) * (M_PI / 180.f));
 
     Mat4f P;
 
-    P.m[0][0] = aspectRatio * fovRad;
+    P.m[0][0] = fovRad;
     P.m[1][1] = fovRad;
-    P.m[2][2] = -far / (far - near);
-    P.m[3][2] = (- far * near) / (far - near);
-    P.m[2][3] = -1.f;
+    P.m[2][2] = -(far / (far - near));
+    P.m[2][3] = (far * near) / (far - near);
+    P.m[3][2] = -1.f;
     P.m[3][3] = 0.f;
 
     return P;
 }
 
-Mat4f viewPort (int x, int y, int w, int h) {
-	float depth = 255.f;
-	Mat4f VP = Mat4f(1.f);
+Mat4f lookAt (Vec3f eye, Vec3f target, Vec3f upDir) {
+    // compute the forward vector from target to eye
+    Vec3f forward = (eye - target).normalize();
 
-    VP.m[0][3] = x + (w / 2.f);
-    VP.m[1][3] = y + (h / 2.f);
-    VP.m[2][3] = depth / 2.f;
+    // compute the left vector
+    Vec3f left = (upDir.cross(forward)).normalize(); // cross product
 
-    VP.m[0][0] = w / 2.f;
-    VP.m[1][1] = h / 2.f;
-    VP.m[2][2] = depth / 2.f;
+    // recompute the orthonormal up vector
+    Vec3f up = forward.cross(left);    // cross product
 
-    return VP;
+    // init 4x4 matrix
+    Mat4f M = Mat4f(1.f);
+
+    // set rotation part, inverse rotation matrix: M^-1 = M^T for Euclidean transform
+    M.m[0][0] = left.x;
+    M.m[1][0] = left.y;
+    M.m[2][0] = left.z;
+    M.m[0][1] = up.x;
+    M.m[1][1] = up.y;
+    M.m[2][1] = up.z;
+    M.m[0][2] = forward.x;
+    M.m[1][2] = forward.y;
+    M.m[2][2] = forward.z;
+
+    // set translation part
+    M.m[3][0] = -left.x * eye.x - left.y * eye.y - left.z * eye.z;
+    M.m[3][1] = -up.x * eye.x - up.y * eye.y - up.z * eye.z;
+    M.m[3][2] = -forward.x * eye.x - forward.y * eye.y - forward.z * eye.z;
+
+    return M;
 }
 
 Mat4f rotationZ (float angle) {

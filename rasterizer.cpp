@@ -12,9 +12,6 @@
 #define WIDTH 800
 #define HEIGHT 800
 
-#define ACCESS_C ((x + (y * WIDTH)) * 3) + c
-#define ACCESS(i) ((pixel.x + (pixel.y * WIDTH)) * 3) + i
-
 // background base color
 #define BACKGROUND_R 75
 #define BACKGROUND_G 75
@@ -44,10 +41,6 @@ void writeImage (std::vector<int>frameBuffer) {
     file.close();
 }
 
-int orient2d(const Vec2f& a, const Vec2f& b, const Vec2f& c) {
-    return (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x);
-}
-
 Vec3f barycenter (Vec3f a, Vec3f b, Vec3f c, Vec3f pixel) {
 	Vec3f bc = Vec3f();
 	bc.x = (c.x-b.x)*(pixel.y-b.y) - (c.y-b.y)*(pixel.x-b.x);
@@ -56,10 +49,10 @@ Vec3f barycenter (Vec3f a, Vec3f b, Vec3f c, Vec3f pixel) {
 	return bc;
 }
 
-void render (Model model, Mat4f P, Mat4f M) {
+void render (Model model, Mat4f P, Mat4f M, Mat4f C) {
 
     std::vector<int>frameBuffer(WIDTH * HEIGHT * 3);
-    std::vector<int>zBuffer(WIDTH * HEIGHT);
+    std::vector<float>zBuffer(WIDTH * HEIGHT);
 
     int i;
     for (i = 0; i < (WIDTH * HEIGHT * 3) - 2; i++) {
@@ -68,19 +61,22 @@ void render (Model model, Mat4f P, Mat4f M) {
         frameBuffer[i + 2] = BACKGROUND_B;
     }
 
-    std::fill(zBuffer.begin(), zBuffer.end(), INT_MIN);
+    std::fill(zBuffer.begin(), zBuffer.end(), FLT_MIN);
 
 	//
 	// iteration through all the triangles of the model
     
     for (i = 0; i < model.nTriangles(); i++) {
 
+    	//triangle indices
     	int tv0 = model.triangleVertice(i, 0), tv1 = model.triangleVertice(i, 1), tv2 = model.triangleVertice(i, 2);
 
+    	// triangle vertices
         Vec3f p0 = model.vertice(tv0);
 		Vec3f p1 = model.vertice(tv1);
 		Vec3f p2 = model.vertice(tv2);
 
+		// vertices normals
 		Vec3f vn0 = model.normal(tv0);
 		Vec3f vn1 = model.normal(tv1);
 		Vec3f vn2 = model.normal(tv2);
@@ -96,45 +92,36 @@ void render (Model model, Mat4f P, Mat4f M) {
 		tp1 = M * tp1;
 		tp2 = M * tp2;
 
-		std::cout << "Transformed (0) : " << tp0 << std::endl;
-
 		//
-		// normal of triangle calculation #1 : using the V and W lines (kinda buggy cause some triangles might have baddly initialized normals (or bad zBuffer?))
-        
-        /*Vec3f line1 = tp1 - tp0;
-        Vec3f line2 = tp2 - tp0;
-        Vec3f surfaceNormal = line1.cross(line2).normalize();*/
+		// transformation to get along with the camera
+
+        tp0 = C * tp0;
+		tp1 = C * tp1;
+		tp2 = C * tp2;
 
         //
-        // normal of triangle calculation #2 : average of the 3 vertices' normals (~~~~~ kinda buggy which is legitimate cause the vertex can change a lot ~~~~~)
+        // normal of triangle calculation : average of the 3 vertices' normals
         
         Vec3f surfaceNormal = ((vn0 + vn1 + vn2) * (1.f / 3.f)).normalize();
 
         //
-        // back-face culling - ?
-
-        //if (((surfaceNormal.x * (tp0.x - camera.x)) +
-        //	 (surfaceNormal.y * (tp0.y - camera.y)) +
-        //	 (surfaceNormal.z * (tp0.z - camera.z)) < 0.f)) continue;
-
-        //
-		// projection of the vertices
+		// projection of the vertices - clean that somehow
 
         Vec3f pp0 = P * tp0;
 		Vec3f pp1 = P * tp1;
 		Vec3f pp2 = P * tp2;
 
-		std::cout << "Projected (0) : " << pp0 << std::endl;
-
 		pp0.x += 1.f; pp0.y += 1.f;
 		pp1.x += 1.f; pp1.y += 1.f;
 		pp2.x += 1.f; pp2.y += 1.f;
 
-		pp0.x *= 0.5f * (float)WIDTH; pp0.y *= 0.5f * (float)HEIGHT;
-		pp1.x *= 0.5f * (float)WIDTH; pp1.y *= 0.5f * (float)HEIGHT;
-		pp2.x *= 0.5f * (float)WIDTH; pp2.y *= 0.5f * (float)HEIGHT;
+		pp0.x /= 2.f; pp0.y /= 2.f;
+		pp1.x /= 2.f; pp1.y /= 2.f;
+		pp2.x /= 2.f; pp2.y /= 2.f;
 
-		std::cout << "Projected' (0) : " << pp0 << std::endl;
+		pp0.x *= (float)WIDTH; pp0.y *= (float)HEIGHT; pp0.z *= 2.f;
+		pp1.x *= (float)WIDTH; pp1.y *= (float)HEIGHT; pp1.z *= 2.f;
+		pp2.x *= (float)WIDTH; pp2.y *= (float)HEIGHT; pp2.z *= 2.f;
         
         //
     	// constant light exposure
@@ -174,7 +161,7 @@ void render (Model model, Mat4f P, Mat4f M) {
         bboxMin.y = std::max(0.f, std::min(bboxMin.y, (float)HEIGHT));
         bboxMax.x = std::max(0.f, std::min(bboxMax.x, (float)WIDTH));
         bboxMax.y = std::max(0.f, std::min(bboxMax.y, (float)HEIGHT));
-                
+
         //
         // iterating through the bounding box -- maybe clean that?
 
@@ -188,26 +175,22 @@ void render (Model model, Mat4f P, Mat4f M) {
                 if (bc.x >= 0 && bc.y >= 0 && bc.z >= 0) {
                 	
                 	// depth of the triangle by average of z coordinates
-                	pixel.z = (pp0.z + pp1.z + pp2.z) / 3.f;
-
-                	// depth of the triangle - ? (taken from ssloy)
-                	/*pixel.z = 0;
-            		pixel.z += pp0.z * bc[0];
-            		pixel.z += pp1.z * bc[1];
-            		pixel.z += pp2.z * bc[2];*/
+                	pixel.z = (p0.z + p1.z + p2.z) / 3.f;
 
             		// drawing (only if nearest pixel visited)
-                	//if (zBuffer[(int)pixel.x + ((int)pixel.y * WIDTH)] < pixel.z) {
+                	if (zBuffer[(int)pixel.x + ((int)pixel.y * WIDTH)] < pixel.z) {
 
                 		// updating the zBuffer
-                		//zBuffer[(int)pixel.x + ((int)pixel.y * WIDTH)] = pixel.z;
+                		zBuffer[(int)pixel.x + ((int)pixel.y * WIDTH)] = pixel.z;
+
+                		if (dot < 0.f) dot = 0.f; //brings the lightning from -1;1 to 0;1, thus not coloring the back faces
 
 	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 0] = MODEL_R * dot;
 	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 1] = MODEL_G * dot;
 	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 2] = MODEL_B * dot;
-                	//}
+                	}
                 }
-            
+
             }
         }
     }
@@ -218,16 +201,18 @@ void render (Model model, Mat4f P, Mat4f M) {
 }
 
 int main () {
-    //Model model("obj/african_head.obj");
     Model model("obj/diablo_pose.obj");
     
     // projection matrix 	   near   far    fov   width  height
-    Mat4f mProjection = projectionMatrix(0.1f, 1000.f, 90.f, WIDTH, HEIGHT);
+    Mat4f mProjection = projectionMatrix(0.1f, 1000.f, 90.f, (float)WIDTH, (float)HEIGHT);
 
     // world matrix, for model transformations (= model matrix - ?)
-	Mat4f mWorld = rotation(0.f, 0.f, 0.f) * scale(1.f, 1.f, 1.f) * translation(0.f, 0.f, 3.f);
+	Mat4f mWorld = rotation(0.f, 0.f, 0.f) * scale(1.f, 1.f, 1.f) * translation(0.f, 0.f, -5.f);
 
-	render(model, mProjection, mWorld);
+	// camera matrix, determines where the camera is, what it is facing and where does its upward vector is
+	Mat4f mCamera = lookAt(Vec3f(0.f, 0.f, 5.f), Vec3f(0.f, 0.f, 0.f), Vec3f(0.f, 1.f, 0.f));
 
+	render(model, mProjection, mWorld, mCamera);
+    
     return 0;
 }
