@@ -18,9 +18,9 @@
 #define BACKGROUND_B 75
 
 // model base color
-#define MODEL_R 200
-#define MODEL_G 0
-#define MODEL_B 0
+#define MODEL_R 255
+#define MODEL_G 255
+#define MODEL_B 255
 
 #define FLT_MAX std::numeric_limits<float>::max()
 #define FLT_MIN std::numeric_limits<float>::lowest()
@@ -49,7 +49,7 @@ Vec3f barycenter (Vec3f a, Vec3f b, Vec3f c, Vec3f pixel) {
 	return bc;
 }
 
-void render (Model model, Mat4f P, Mat4f M, Mat4f C) {
+std::vector<int> render (Model model, Mat4f P, Mat4f M, Mat4f C) {
 
     std::vector<int>frameBuffer(WIDTH * HEIGHT * 3);
     std::vector<float>zBuffer(WIDTH * HEIGHT);
@@ -195,9 +195,27 @@ void render (Model model, Mat4f P, Mat4f M, Mat4f C) {
         }
     }
 
-    // write the frame buffer to the ppm file
-    writeImage(frameBuffer);
+    // return the frame buffer write image outside
+    return frameBuffer;
+    
 
+}
+
+
+
+std::vector<int> mixed_image(std::vector<int> buffR, std::vector<int> buffB){
+    std::vector<int>frameBuffer(WIDTH * HEIGHT * 3);
+    
+    for (int x = 0; x < WIDTH; x++) {
+        for (int y = 0; y < HEIGHT; y++) {
+            frameBuffer[((x + (y * WIDTH)) * 3) + 0] = buffB[((x + (y * WIDTH)) * 3) + 0];
+            frameBuffer[((x + (y * WIDTH)) * 3) + 1] = 0;
+            frameBuffer[((x + (y * WIDTH)) * 3) + 2] = buffR[((x + (y * WIDTH)) * 3) + 2];
+        }
+    }
+
+
+    return frameBuffer;
 }
 
 int main () {
@@ -210,9 +228,18 @@ int main () {
 	Mat4f mWorld = rotation(0.f, 0.f, 0.f) * scale(1.f, 1.f, 1.f) * translation(0.f, 0.f, -5.f);
 
 	// camera matrix, determines where the camera is, what it is facing and where does its upward vector is
-	Mat4f mCamera = lookAt(Vec3f(0.f, 0.f, 5.f), Vec3f(0.f, 0.f, 0.f), Vec3f(0.f, 1.f, 0.f));
+	Mat4f mCameraR = lookAt(Vec3f(-0.05f, 0.f, 5.f), Vec3f(0.f, 0.f, 0.f), Vec3f(0.f, 1.f, 0.f));
+    Mat4f mCameraB = lookAt(Vec3f(0.05f, 0.f, 5.f), Vec3f(0.f, 0.f, 0.f), Vec3f(0.f, 1.f, 0.f));
 
-	render(model, mProjection, mWorld, mCamera);
+    //catching the two buffer image in order to construct the main image
+    std::vector<int> frameBufferR = render(model, mProjection, mWorld, mCameraR);
+	std::vector<int> frameBufferB = render(model, mProjection, mWorld, mCameraB);
+
+    //mixed the two framebuffer
+    std::vector<int>frameBuffer = mixed_image(frameBufferR, frameBufferB);
+
+
+    writeImage(frameBuffer);
     
     return 0;
 }
