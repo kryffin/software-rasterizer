@@ -13,9 +13,7 @@
 #define HEIGHT 800
 
 // background base color
-#define BACKGROUND_R 75
-#define BACKGROUND_G 75
-#define BACKGROUND_B 75
+#define BACKGROUND_COLOR 0
 
 // model base color
 #define MODEL_R 255
@@ -31,7 +29,7 @@ void writeImage (std::vector<int>frameBuffer) {
     file << "P3" << std::endl << WIDTH << " " << HEIGHT << std::endl << 255 << std::endl;
     int x, y, c;
     for (y = 0; y < HEIGHT; y++) {
-        for (x = 0; x < WIDTH; x++) {
+        for (x = WIDTH-1; x >= 0; x--) { //reverse course to inverse the rendered image along the x-axis
             for (c = 0; c < 3; c++) {
                 file << frameBuffer[((x + (y * WIDTH)) * 3) + c] << " ";
             }
@@ -51,21 +49,16 @@ Vec3f barycenter (Vec3f a, Vec3f b, Vec3f c, Vec3f pixel) {
 
 std::vector<int> render (Model model, Mat4f P, Mat4f M, Mat4f C) {
 
-    std::vector<int>frameBuffer(WIDTH * HEIGHT * 3);
+    std::vector<int>frameBuffer(WIDTH * HEIGHT); //single colored pixels for the grayscale
     std::vector<float>zBuffer(WIDTH * HEIGHT);
 
-    int i;
-    for (i = 0; i < (WIDTH * HEIGHT * 3) - 2; i++) {
-        frameBuffer[i + 0] = BACKGROUND_R;
-        frameBuffer[i + 1] = BACKGROUND_G;
-        frameBuffer[i + 2] = BACKGROUND_B;
-    }
-
+    std::fill(frameBuffer.begin(), frameBuffer.end(), BACKGROUND_COLOR);
     std::fill(zBuffer.begin(), zBuffer.end(), FLT_MIN);
 
 	//
 	// iteration through all the triangles of the model
     
+    int i;
     for (i = 0; i < model.nTriangles(); i++) {
 
     	//triangle indices
@@ -183,11 +176,9 @@ std::vector<int> render (Model model, Mat4f P, Mat4f M, Mat4f C) {
                 		// updating the zBuffer
                 		zBuffer[(int)pixel.x + ((int)pixel.y * WIDTH)] = pixel.z;
 
-                		if (dot < 0.f) dot = 0.f; //brings the lightning from -1;1 to 0;1, thus not coloring the back faces
+                		if (dot < 0.f) dot = 0.f;
 
-	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 0] = MODEL_R * dot;
-	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 1] = MODEL_G * dot;
-	                    frameBuffer[((pixel.x + (pixel.y * WIDTH)) * 3) + 2] = MODEL_B * dot;
+	                    frameBuffer[pixel.x + (pixel.y * WIDTH)] = (0.21f * (MODEL_R * dot)) + (0.72f * (MODEL_G * dot)) + (0.07f * (MODEL_B * dot));
                 	}
                 }
 
@@ -197,23 +188,22 @@ std::vector<int> render (Model model, Mat4f P, Mat4f M, Mat4f C) {
 
     // return the frame buffer write image outside
     return frameBuffer;
-    
 
 }
 
 
 
-std::vector<int> mixed_image(std::vector<int> buffR, std::vector<int> buffB){
-    std::vector<int>frameBuffer(WIDTH * HEIGHT * 3);
+std::vector<int> mix_channels(std::vector<int> buffR, std::vector<int> buffB){
+    std::vector<int>frameBuffer(WIDTH * HEIGHT * 3); //vector representing the anaglyph render
     
+    //red buffer goes in red channel, blue buffer in blue channel
     for (int x = 0; x < WIDTH; x++) {
         for (int y = 0; y < HEIGHT; y++) {
-            frameBuffer[((x + (y * WIDTH)) * 3) + 0] = buffB[((x + (y * WIDTH)) * 3) + 0];
-            frameBuffer[((x + (y * WIDTH)) * 3) + 1] = 0;
-            frameBuffer[((x + (y * WIDTH)) * 3) + 2] = buffR[((x + (y * WIDTH)) * 3) + 2];
+            frameBuffer[((x + (y * WIDTH)) * 3) + 0] = buffR[x + (y * WIDTH)]; //red
+            frameBuffer[((x + (y * WIDTH)) * 3) + 1] = 0; //green
+            frameBuffer[((x + (y * WIDTH)) * 3) + 2] = buffB[x + (y * WIDTH)]; //blue
         }
     }
-
 
     return frameBuffer;
 }
@@ -231,13 +221,12 @@ int main () {
 	Mat4f mCameraR = lookAt(Vec3f(-0.05f, 0.f, 5.f), Vec3f(0.f, 0.f, 0.f), Vec3f(0.f, 1.f, 0.f));
     Mat4f mCameraB = lookAt(Vec3f(0.05f, 0.f, 5.f), Vec3f(0.f, 0.f, 0.f), Vec3f(0.f, 1.f, 0.f));
 
-    //catching the two buffer image in order to construct the main image
-    std::vector<int> frameBufferR = render(model, mProjection, mWorld, mCameraR);
-	std::vector<int> frameBufferB = render(model, mProjection, mWorld, mCameraB);
+    //catching the two buffered image in order to construct the main image
+    std::vector<int> frameBufferR = render(model, mProjection, mWorld, mCameraR); //red buffer
+	std::vector<int> frameBufferB = render(model, mProjection, mWorld, mCameraB); //blue buffer
 
-    //mixed the two framebuffer
-    std::vector<int>frameBuffer = mixed_image(frameBufferR, frameBufferB);
-
+    //mixing the channels to render the anaglyph image
+    std::vector<int>frameBuffer = mix_channels(frameBufferR, frameBufferB);
 
     writeImage(frameBuffer);
     
